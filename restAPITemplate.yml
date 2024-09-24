@@ -1,0 +1,194 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: AWS Serverless REST API with Step Functions, S3, and DynamoDB
+
+Resources:
+  # S3 Bucket to store client documents
+  ClientsS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: clients-documents-bucket
+
+  # DynamoDB Table to store client information
+  ClientsDynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ClientsTable
+      AttributeDefinitions:
+        - AttributeName: ClientID
+          AttributeType: S
+      KeySchema:
+        - AttributeName: ClientID
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  # IAM Role for Lambda to access DynamoDB and S3
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LambdaS3DynamoDBPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                Resource: !GetAtt ClientsDynamoDBTable.Arn
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource: arn:aws:s3:::clients-documents-bucket/*
+
+  # Placeholder Lambda function for creating a client with inline code
+  CreateClientFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: CreateClient
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+              return {
+                  statusCode: 200,
+                  body: JSON.stringify('Hello from Lambda!'),
+              };
+          };
+      Runtime: nodejs18.x
+      Timeout: 10
+      Environment:
+        Variables:
+          DYNAMO_TABLE_NAME: !Ref ClientsDynamoDBTable
+          S3_BUCKET_NAME: !Ref ClientsS3Bucket
+
+  # Placeholder Lambda function for reading a client with inline code
+  GetClientFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: GetClient
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+              return {
+                  statusCode: 200,
+                  body: JSON.stringify('Hello from Lambda!'),
+              };
+          };
+      Runtime: nodejs18.x
+      Timeout: 10
+      Environment:
+        Variables:
+          DYNAMO_TABLE_NAME: !Ref ClientsDynamoDBTable
+          S3_BUCKET_NAME: !Ref ClientsS3Bucket
+
+  # Placeholder Lambda function for updating a client with inline code
+  UpdateClientFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: UpdateClient
+      Handler: index.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+              return {
+                  statusCode: 200,
+                  body: JSON.stringify('Hello from Lambda!'),
+              };
+          };
+      Runtime: nodejs18.x
+      Timeout: 10
+      Environment:
+        Variables:
+          DYNAMO_TABLE_NAME: !Ref ClientsDynamoDBTable
+          S3_BUCKET_NAME: !Ref ClientsS3Bucket
+
+  # API Gateway for Client Management
+  ClientsApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: ClientsApi
+
+  # API Gateway Resource - /clients
+  ClientsApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt ClientsApi.RootResourceId
+      PathPart: clients
+      RestApiId: !Ref ClientsApi
+
+  # POST Method - /clients
+  ClientsApiPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: POST
+      ResourceId: !Ref ClientsApiResource
+      RestApiId: !Ref ClientsApi
+      AuthorizationType: NONE # No authorization for this method
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CreateClientFunction.Arn}/invocations
+
+  # GET Method - /clients/{id}
+  ClientsApiGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: GET
+      ResourceId: !Ref ClientsApiResource
+      RestApiId: !Ref ClientsApi
+      AuthorizationType: NONE # No authorization for this method
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: GET
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetClientFunction.Arn}/invocations
+
+  # PUT Method - /clients/{id}
+  ClientsApiPutMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: PUT
+      ResourceId: !Ref ClientsApiResource
+      RestApiId: !Ref ClientsApi
+      AuthorizationType: NONE # No authorization for this method
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: PUT
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UpdateClientFunction.Arn}/invocations
+
+  # Lambda Permission for API Gateway to Invoke CreateClient
+  CreateClientPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt CreateClientFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+
+  # Lambda Permission for API Gateway to Invoke GetClient
+  GetClientPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt GetClientFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+
+  # Lambda Permission for API Gateway to Invoke UpdateClient
+  UpdateClientPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt UpdateClientFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
